@@ -1,25 +1,22 @@
 'use client'
 
 import { useState, useEffect } from "react"
+import { ethers } from "ethers"
+import { motion, AnimatePresence } from "framer-motion"
+import { contractABI } from "./contractABI"
+import { Loader2, Plus, Check, AlertCircle, Menu, X, Vote, Users, PlusCircle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 
-// Extend the Window interface to include the ethereum property
 declare global {
   interface Window {
     ethereum: any;
   }
 }
-import { ethers } from "ethers"
-
-import { motion, AnimatePresence } from "framer-motion"
-import { contractABI} from "./contractABI";  // ABI JSON file
-import { Loader2, Plus, Check, AlertCircle, Menu, X } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 
 export default function Home() {
   const contractAddress = "0xe225BF6E1e198807E161D9da8681b3CFD3d4EEE4"
@@ -35,8 +32,8 @@ export default function Home() {
   const [success, setSuccess] = useState<string | null>(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false)
   const [debugInfo, setDebugInfo] = useState<string>("")
-  const [hasVoted, setHasVoted] = useState(false);
-  // Removed duplicate declaration of addDebugInfo
+  const [hasVoted, setHasVoted] = useState(false)
+  const [balance, setBalance] = useState<string>("")
 
   useEffect(() => {
     const checkConnection = async () => {
@@ -73,6 +70,11 @@ export default function Home() {
       setProvider(provider)
       setSigner(signer)
       addDebugInfo("Wallet connected. Account: " + account)
+      
+      const balance = await provider.getBalance(account)
+      const balanceInEth = ethers.formatEther(balance)
+      setBalance(balanceInEth)
+      addDebugInfo("Account balance: " + balanceInEth + " ETH")
       
       addDebugInfo("Initializing contract...")
       const contract = new ethers.Contract(contractAddress, contractABI, signer)
@@ -127,71 +129,88 @@ export default function Home() {
     }
   }
 
-  interface Contract {
-    vote: (id: number) => Promise<any>;
-  }
-
   const vote = async (id: number) => {
     if (!contract) {
-      console.error("Contract is not initialized.");
-      return;
+      console.error("Contract is not initialized.")
+      return
     }
 
     try {
-      const tx = await (contract as Contract).vote(id);
-      await tx.wait(); // Wait for the transaction to be confirmed
-      setHasVoted(true);
+      const tx = await contract.vote(id)
+      await tx.wait()
+      setHasVoted(true)
+      setSuccess("Vote cast successfully!")
+      await loadCandidates(contract)
     } catch (error) {
       if (error instanceof Error) {
-        console.error("Voting failed:", error.message);
+        console.error("Voting failed:", error.message)
+        setError("Voting failed. Please try again.")
       } else {
-        console.error("Voting failed:", error);
+        console.error("Voting failed:", error)
+        setError("An unknown error occurred. Please try again.")
       }
     }
-  };
-  
+  }
 
-
-
-
-
-
-
-  // Helper function to safely stringify objects with BigInt values
   const safeStringify = (obj: any) => {
     return JSON.stringify(obj, (key, value) =>
       typeof value === 'bigint' ? value.toString() : value
-    );
-  };
+    )
+  }
 
-  // Update the addDebugInfo function to use safeStringify
   const addDebugInfo = (info: string) => {
-    setDebugInfo(prev => prev + "\n" + safeStringify(info));
-  };
+    setDebugInfo(prev => prev + "\n" + safeStringify(info))
+  }
 
   const dismissNotification = () => {
     setError(null)
     setSuccess(null)
   }
 
+  const disconnectWallet = () => {
+    setAccount(null)
+    setProvider(null)
+    setSigner(null)
+    setContract(null)
+    setCandidates([])
+    setCandidateName("")
+    setVoteCandidateId(1)
+    setIsLoading(false)
+    setError(null)
+    setSuccess(null)
+    setIsSidebarOpen(false)
+    setDebugInfo("")
+    setHasVoted(false)
+    setBalance("")
+  }
+
   const Sidebar = () => (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6 text-pink-300">Voting System</h2>
-      {!account ? (
-        <Button onClick={connectWallet} disabled={isLoading} className="w-full bg-pink-700 hover:bg-pink-600 text-white">
-          {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Connect Wallet"}
+    <div className="p-6 h-full flex flex-col justify-between">
+      <div>
+        <h2 className="text-3xl font-bold mb-6 text-pink-300">Voting System</h2>
+        {!account ? (
+          <Button onClick={connectWallet} disabled={isLoading} className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white transition-all duration-300 transform hover:scale-105">
+            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Connect Wallet"}
+          </Button>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-pink-400 mb-2">Connected Account:</p>
+            <p className="font-mono text-xs break-all text-pink-300 bg-gray-800 p-2 rounded">{account}</p>
+            <p className="text-sm text-pink-400 mb-2">Balance:</p>
+            <p className="font-mono text-xs break-all text-pink-300 bg-gray-800 p-2 rounded">{balance} ETH</p>
+          </div>
+        )}
+      </div>
+      {account && (
+        <Button onClick={disconnectWallet} className="w-full bg-red-700 hover:bg-red-600 text-white mt-4 transition-all duration-300 transform hover:scale-105">
+          Disconnect Wallet
         </Button>
-      ) : (
-        <div>
-          <p className="text-sm text-pink-400 mb-2">Connected Account:</p>
-          <p className="font-mono text-xs break-all text-pink-300">{account}</p>
-        </div>
       )}
     </div>
   )
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-black text-pink-200">
+    <div className="flex flex-col md:flex-row min-h-screen bg-gradient-to-br from-gray-900 to-black text-pink-200">
       <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
         <SheetTrigger asChild>
           <Button variant="outline" size="icon" className="md:hidden fixed top-4 left-4 z-40 bg-gray-900 text-pink-300">
@@ -203,11 +222,11 @@ export default function Home() {
         </SheetContent>
       </Sheet>
 
-      <aside className="hidden md:block w-64 bg-gray-900 shadow-md">
+      <aside className="hidden md:block w-64 bg-gray-900 shadow-lg">
         <Sidebar />
       </aside>
 
-      <main className="flex-1 p-6 md:p-8 lg:p-10">
+      <main className="flex-1 p-6 md:p-8 lg:p-10 overflow-auto">
         <AnimatePresence>
           {(error || success) && (
             <motion.div
@@ -243,13 +262,22 @@ export default function Home() {
         </AnimatePresence>
         {account && (
           <Tabs defaultValue="add-candidate" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 bg-gray-800">
-              <TabsTrigger value="add-candidate" className="data-[state=active]:bg-pink-700 data-[state=active]:text-white">Add Candidate</TabsTrigger>
-              <TabsTrigger value="vote" className="data-[state=active]:bg-pink-700 data-[state=active]:text-white">Vote</TabsTrigger>
-              <TabsTrigger value="candidates" className="data-[state=active]:bg-pink-700 data-[state=active]:text-white">Candidates</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 bg-gray-800 rounded-lg p-1">
+              <TabsTrigger value="add-candidate" className="data-[state=active]:bg-pink-700 data-[state=active]:text-white rounded-md transition-all duration-300">
+                <PlusCircle className="w-4 h-4 mr-2" />
+                Add Candidate
+              </TabsTrigger>
+              <TabsTrigger value="vote" className="data-[state=active]:bg-pink-700 data-[state=active]:text-white rounded-md transition-all duration-300">
+                <Vote className="w-4 h-4 mr-2" />
+                Vote
+              </TabsTrigger>
+              <TabsTrigger value="candidates" className="data-[state=active]:bg-pink-700 data-[state=active]:text-white rounded-md transition-all duration-300">
+                <Users className="w-4 h-4 mr-2" />
+                Candidates
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="add-candidate">
-              <Card className="bg-gray-900 border-gray-700">
+              <Card className="bg-gray-900 border-gray-700 shadow-lg">
                 <CardHeader>
                   <CardTitle className="text-pink-300">Add a Candidate</CardTitle>
                   <CardDescription className="text-pink-400">Enter the name of the new candidate below.</CardDescription>
@@ -261,9 +289,9 @@ export default function Home() {
                       placeholder="Candidate name"
                       value={candidateName}
                       onChange={(e) => setCandidateName(e.target.value)}
-                      className="w-full sm:w-auto bg-gray-800 text-pink-200 border-gray-700 focus:border-pink-500"
+                      className="w-full sm:w-auto bg-gray-800 text-pink-200 border-gray-700 focus:border-pink-500 rounded-lg"
                     />
-                    <Button onClick={addCandidate} disabled={isLoading} className="w-full sm:w-auto bg-pink-700 hover:bg-pink-600 text-white">
+                    <Button onClick={addCandidate} disabled={isLoading} className="w-full sm:w-auto bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white transition-all duration-300 transform hover:scale-105">
                       {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                       Add
                     </Button>
@@ -272,7 +300,7 @@ export default function Home() {
               </Card>
             </TabsContent>
             <TabsContent value="vote">
-              <Card className="bg-gray-900 border-gray-700">
+              <Card className="bg-gray-900 border-gray-700 shadow-lg">
                 <CardHeader>
                   <CardTitle className="text-pink-300">Cast Your Vote</CardTitle>
                   <CardDescription className="text-pink-400">Select a candidate ID to vote for.</CardDescription>
@@ -285,17 +313,17 @@ export default function Home() {
                       onChange={(e) => setVoteCandidateId(Number(e.target.value))}
                       min="1"
                       placeholder="Candidate ID"
-                      className="w-full sm:w-auto bg-gray-800 text-pink-200 border-gray-700 focus:border-pink-500"
+                      className="w-full sm:w-auto bg-gray-800 text-pink-200 border-gray-700 focus:border-pink-500 rounded-lg"
                     />
-                    <Button onClick={() => vote(voteCandidateId)} disabled={isLoading} className="w-full sm:w-auto bg-pink-700 hover:bg-pink-600 text-white">
-                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Vote"}
+                    <Button onClick={() => vote(voteCandidateId)} disabled={isLoading} className="w-full sm:w-auto bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white transition-all duration-300 transform hover:scale-105">
+                      {isLoading ? <Loader2 className="mr-2  h-4 w-4 animate-spin" /> : "Vote"}
                     </Button>
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
             <TabsContent value="candidates">
-              <Card className="bg-gray-900 border-gray-700">
+              <Card className="bg-gray-900 border-gray-700 shadow-lg">
                 <CardHeader>
                   <CardTitle className="text-pink-300">Candidates List</CardTitle>
                   <CardDescription className="text-pink-400">View all registered candidates and their vote counts.</CardDescription>
@@ -309,10 +337,10 @@ export default function Home() {
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: index * 0.1 }}
-                          className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-800 p-3 rounded-md"
+                          className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-800 p-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
                         >
-                          <span className="font-medium text-pink-300 mb-1 sm:mb-0">{candidate[1]}</span>
-                          <span className="text-sm text-pink-400">
+                          <span className="font-medium text-pink-300 mb-1 sm:mb-0 text-lg">{candidate[1]}</span>
+                          <span className="text-sm text-pink-400 bg-gray-700 px-3 py-1 rounded-full">
                             ID: {candidate[0].toString()}, Votes: {candidate[2].toString()}
                           </span>
                         </motion.li>
@@ -326,12 +354,12 @@ export default function Home() {
             </TabsContent>
           </Tabs>
         )}
-        <Card className="mt-6 bg-gray-900 border-gray-700">
+        <Card className="mt-6 bg-gray-900 border-gray-700 shadow-lg">
           <CardHeader>
             <CardTitle className="text-pink-300">Debug Information</CardTitle>
           </CardHeader>
           <CardContent>
-            <pre className="whitespace-pre-wrap text-xs text-pink-400">{debugInfo}</pre>
+            <pre className="whitespace-pre-wrap text-xs text-pink-400 bg-gray-800 p-4 rounded-lg overflow-auto max-h-60">{debugInfo}</pre>
           </CardContent>
         </Card>
       </main>
