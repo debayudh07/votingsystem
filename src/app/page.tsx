@@ -1,3 +1,4 @@
+"use client"
 import { useState, useEffect, useCallback } from "react"
 import { ethers } from "ethers"
 import { motion, AnimatePresence } from "framer-motion"
