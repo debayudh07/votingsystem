@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 "use client"
 import { useState, useEffect, useCallback } from "react"
 import { ethers } from "ethers"
