@@ -1,6 +1,4 @@
-'use client'
-
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { ethers } from "ethers"
 import { motion, AnimatePresence } from "framer-motion"
 import { contractABI } from "./contractABI"
@@ -14,17 +12,23 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 
 declare global {
   interface Window {
-    ethereum: any;
+    ethereum: ethers.Eip1193Provider;
   }
 }
 
+interface Candidate {
+  id: bigint;
+  name: string;
+  voteCount: bigint;
+}
+
 export default function Home() {
-  const contractAddress = "0xe225BF6E1e198807E161D9da8681b3CFD3d4EEE4"
+  const contractAddress = "0x9ff0F2350c4DeBa158fC7E44F6DFa545b4EA98CA"
   const [account, setAccount] = useState<string | null>(null)
-  const [provider, setProvider] = useState<any>(null)
-  const [signer, setSigner] = useState<any>(null)
-  const [contract, setContract] = useState<any>(null)
-  const [candidates, setCandidates] = useState<any[]>([])
+  const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null)
+  const [signer, setSigner] = useState<ethers.Signer | null>(null)
+  const [contract, setContract] = useState<ethers.Contract | null>(null)
+  const [candidates, setCandidates] = useState<Candidate[]>([])
   const [candidateName, setCandidateName] = useState<string>("")
   const [voteCandidateId, setVoteCandidateId] = useState<number>(1)
   const [isLoading, setIsLoading] = useState<boolean>(false)
@@ -35,34 +39,16 @@ export default function Home() {
   const [hasVoted, setHasVoted] = useState(false)
   const [balance, setBalance] = useState<string>("")
 
-  useEffect(() => {
-    const checkConnection = async () => {
-      if (window.ethereum) {
-        try {
-          const accounts = await window.ethereum.request({ method: 'eth_accounts' })
-          if (accounts.length > 0) {
-            addDebugInfo("Ethereum detected and account found. Connecting...")
-            await connectWallet()
-          } else {
-            addDebugInfo("Ethereum detected but no accounts found.")
-          }
-        } catch (error) {
-          addDebugInfo("Error checking connection: " + JSON.stringify(error))
-        }
-      } else {
-        addDebugInfo("Ethereum not detected.")
-      }
-    }
-
-    checkConnection()
+  const addDebugInfo = useCallback((info: string) => {
+    setDebugInfo(prev => prev + "\n" + safeStringify(info))
   }, [])
 
-  const connectWallet = async () => {
+  const connectWallet = useCallback(async () => {
     setIsLoading(true)
     setError(null)
     try {
       addDebugInfo("Connecting wallet...")
-      const provider = new ethers.BrowserProvider((window as any).ethereum)
+      const provider = new ethers.BrowserProvider(window.ethereum)
       await provider.send("eth_requestAccounts", [])
       const signer = await provider.getSigner()
       const account = await signer.getAddress()
@@ -86,21 +72,47 @@ export default function Home() {
     } catch (error) {
       console.error("Error connecting to wallet:", error)
       setError("Failed to connect wallet. Please try again.")
-      addDebugInfo("Error connecting wallet: " + JSON.stringify(error))
+      addDebugInfo("Error connecting wallet: " + safeStringify(error))
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [addDebugInfo])
 
-  const loadCandidates = async (contractInstance: any) => {
+  useEffect(() => {
+    const checkConnection = async () => {
+      if (window.ethereum) {
+        try {
+          const accounts = await window.ethereum.request({ method: 'eth_accounts' })
+          if (accounts.length > 0) {
+            addDebugInfo("Ethereum detected and account found. Connecting...")
+            await connectWallet()
+          } else {
+            addDebugInfo("Ethereum detected but no accounts found.")
+          }
+        } catch (error) {
+          addDebugInfo("Error checking connection: " + safeStringify(error))
+        }
+      } else {
+        addDebugInfo("Ethereum not detected.")
+      }
+    }
+
+    checkConnection()
+  }, [addDebugInfo, connectWallet])
+
+  const loadCandidates = async (contractInstance: ethers.Contract) => {
     addDebugInfo("Loading candidates...")
-    const candidatesArray = []
-    for (let i = 1; i <= 5; i++) {
+    const candidatesArray: Candidate[] = []
+    for (let i = 1; i <= 10; i++) {
       try {
         const candidate = await contractInstance.getCandidate(i)
-        candidatesArray.push(candidate)
+        candidatesArray.push({
+          id: candidate[0],
+          name: candidate[1],
+          voteCount: candidate[2]
+        })
       } catch (error) {
-        addDebugInfo("Error loading candidate " + i + ": " + JSON.stringify(error))
+        addDebugInfo("Error loading candidate " + i + ": " + safeStringify(error))
         break
       }
     }
@@ -109,7 +121,7 @@ export default function Home() {
   }
 
   const addCandidate = async () => {
-    if (candidateName.trim() === "") return
+    if (!contract || candidateName.trim() === "") return
     setIsLoading(true)
     setError(null)
     try {
@@ -123,7 +135,7 @@ export default function Home() {
     } catch (error) {
       console.error("Error adding candidate", error)
       setError("Failed to add candidate. Please try again.")
-      addDebugInfo("Error adding candidate: " + JSON.stringify(error))
+      addDebugInfo("Error adding candidate: " + safeStringify(error))
     } finally {
       setIsLoading(false)
     }
@@ -142,24 +154,15 @@ export default function Home() {
       setSuccess("Vote cast successfully!")
       await loadCandidates(contract)
     } catch (error) {
-      if (error instanceof Error) {
-        console.error("Voting failed:", error.message)
-        setError("Voting failed. Please try again.")
-      } else {
-        console.error("Voting failed:", error)
-        setError("An unknown error occurred. Please try again.")
-      }
+      console.error("Voting failed:", error)
+      setError("Voting failed. Please try again.")
     }
   }
 
-  const safeStringify = (obj: any) => {
+  const safeStringify = (obj: unknown): string => {
     return JSON.stringify(obj, (key, value) =>
       typeof value === 'bigint' ? value.toString() : value
     )
-  }
-
-  const addDebugInfo = (info: string) => {
-    setDebugInfo(prev => prev + "\n" + safeStringify(info))
   }
 
   const dismissNotification = () => {
@@ -339,9 +342,9 @@ export default function Home() {
                           transition={{ delay: index * 0.1 }}
                           className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-800 p-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
                         >
-                          <span className="font-medium text-pink-300 mb-1 sm:mb-0 text-lg">{candidate[1]}</span>
+                          <span className="font-medium text-pink-300 mb-1 sm:mb-0 text-lg">{candidate.name}</span>
                           <span className="text-sm text-pink-400 bg-gray-700 px-3 py-1 rounded-full">
-                            ID: {candidate[0].toString()}, Votes: {candidate[2].toString()}
+                            ID: {candidate.id.toString()}, Votes: {candidate.voteCount.toString()}
                           </span>
                         </motion.li>
                       ))}
