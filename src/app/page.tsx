@@ -46,39 +46,40 @@ export default function Home() {
   }, [])
 
   const connectWallet = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
     try {
-      addDebugInfo("Connecting wallet...")
-      const provider = new ethers.BrowserProvider(window.ethereum)
-      await provider.send("eth_requestAccounts", [])
-      const signer = await provider.getSigner()
-      const account = await signer.getAddress()
-      setAccount(account)
-      setProvider(provider)
-      setSigner(signer)
-      addDebugInfo("Wallet connected. Account: " + account)
+      addDebugInfo("Connecting wallet...");
+      if (!window.ethereum) throw new Error("MetaMask is not installed. Please install MetaMask to use this app.");
+  
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      await provider.send("eth_requestAccounts", []); // MetaMask wallet connection
+      const signer = await provider.getSigner();
+      const account = await signer.getAddress();
       
-      const balance = await provider.getBalance(account)
-      const balanceInEth = ethers.formatEther(balance)
-      setBalance(balanceInEth)
-      addDebugInfo("Account balance: " + balanceInEth + " ETH")
+      setAccount(account);
+      setProvider(provider);
+      setSigner(signer);
       
-      addDebugInfo("Initializing contract...")
-      const contract = new ethers.Contract(contractAddress, contractABI, signer)
-      setContract(contract)
-      addDebugInfo("Contract initialized.")
+      addDebugInfo("Wallet connected. Account: " + account);
+  
+      const balance = await provider.getBalance(account);
+      setBalance(ethers.formatEther(balance));
+      addDebugInfo("Account balance: " + ethers.formatEther(balance) + " ETH");
       
-      await loadCandidates(contract)
-      setSuccess("Wallet connected successfully!")
+      const contract = new ethers.Contract(contractAddress, contractABI, signer);
+      setContract(contract);
+      addDebugInfo("Contract initialized.");
+      
+      await loadCandidates(contract);
+      setSuccess("Wallet connected successfully!");
     } catch (error) {
-      console.error("Error connecting to wallet:", error)
-      setError("Failed to connect wallet. Please try again.")
-      addDebugInfo("Error connecting wallet: " + safeStringify(error))
+      setError("Failed to connect wallet. Please try again.");
+      addDebugInfo("Error connecting wallet: " + safeStringify(error));
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [addDebugInfo])
+  }, [addDebugInfo]);
 
   useEffect(() => {
     const checkConnection = async () => {
