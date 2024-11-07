@@ -49,37 +49,42 @@ export default function Home() {
     setIsLoading(true);
     setError(null);
     try {
-      addDebugInfo("Connecting wallet...");
-      if (!window.ethereum) throw new Error("MetaMask is not installed. Please install MetaMask to use this app.");
-  
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      await provider.send("eth_requestAccounts", []); // MetaMask wallet connection
-      const signer = await provider.getSigner();
-      const account = await signer.getAddress();
-      
-      setAccount(account);
-      setProvider(provider);
-      setSigner(signer);
-      
-      addDebugInfo("Wallet connected. Account: " + account);
-  
-      const balance = await provider.getBalance(account);
-      setBalance(ethers.formatEther(balance));
-      addDebugInfo("Account balance: " + ethers.formatEther(balance) + " ETH");
-      
-      const contract = new ethers.Contract(contractAddress, contractABI, signer);
-      setContract(contract);
-      addDebugInfo("Contract initialized.");
-      
-      await loadCandidates(contract);
-      setSuccess("Wallet connected successfully!");
+        addDebugInfo("Connecting wallet...");
+        if (!window.ethereum) {
+            throw new Error("MetaMask is not installed. Please install MetaMask to use this app.");
+        }
+
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        await provider.send("eth_requestAccounts", []); // MetaMask wallet connection
+        const signer = await provider.getSigner();
+        const account = await signer.getAddress();
+        
+        setAccount(account);
+        setProvider(provider);
+        setSigner(signer);
+        
+        addDebugInfo("Wallet connected. Account: " + account);
+
+        const balance = await provider.getBalance(account);
+        setBalance(ethers.formatEther(balance));
+        addDebugInfo("Account balance: " + ethers.formatEther(balance) + " ETH");
+
+        const contract = new ethers.Contract(contractAddress, contractABI, signer);
+        setContract(contract);
+        addDebugInfo("Contract initialized.");
+
+        await loadCandidates(contract);
+        setSuccess("Wallet connected successfully!");
     } catch (error) {
-      setError("Failed to connect wallet. Please try again.");
-      addDebugInfo("Error connecting wallet: " + safeStringify(error));
+        setError("Failed to connect wallet. Please try again.");
+        addDebugInfo("Error connecting wallet: " + safeStringify(error));
+
+        // Redirect to MetaMask dapp if there’s an error connecting
+        window.location.href = `https://metamask.app.link/dapp/${window.location.href}`;
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
-  }, [addDebugInfo]);
+}, [addDebugInfo]);
 
   useEffect(() => {
     const checkConnection = async () => {
