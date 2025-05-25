@@ -25,7 +25,7 @@ interface Candidate {
 }
 
 export default function Home() {
-  const contractAddress = "0x9ff0F2350c4DeBa158fC7E44F6DFa545b4EA98CA"
+  const contractAddress = "0xF0F28D1C97A354E0371CD617e3135d157c4c5d40"
   const [account, setAccount] = useState<string | null>(null)
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null)
   const [signer, setSigner] = useState<ethers.Signer | null>(null)
